@@ -14,6 +14,7 @@ from src.decoder import ConvTransE, ConvTransR
 class RGCNCell(BaseRGCN):
     def build_hidden_layer(self, idx):
         act = F.rrelu
+        # idx: the index of hidden layers
         if idx:
             self.num_basis = 0
         print("activate function: {}".format(act))
@@ -138,6 +139,13 @@ class RecurrentRGCN(nn.Module):
             raise NotImplementedError 
 
     def forward(self, g_list, static_graph, use_cuda):
+        """
+        :param glist: history graph list [g, g, g, ...]
+        :param static_graph: 
+        :param use_cuda:
+        :return:
+        """
+
         gate_list = []
         degree_list = []
 
@@ -156,13 +164,15 @@ class RecurrentRGCN(nn.Module):
 
         for i, g in enumerate(g_list):
             g = g.to(self.gpu)
+
+            # 计算rel_emb evolve
             temp_e = self.h[g.r_to_e]
             x_input = torch.zeros(self.num_rels * 2, self.h_dim).float().cuda() if use_cuda else torch.zeros(self.num_rels * 2, self.h_dim).float()
             for span, r_idx in zip(g.r_len, g.uniq_r):
-                x = temp_e[span[0]:span[1],:]
+                x = temp_e[span[0]:span[1],:] #与该uniq_r相关的entity的embedding
                 x_mean = torch.mean(x, dim=0, keepdim=True)
-                x_input[r_idx] = x_mean
-            if i == 0:
+                x_input[r_idx] = x_mean #当前uniq_r的embedding
+            if i == 0: #第一个history graph
                 x_input = torch.cat((self.emb_rel, x_input), dim=1)
                 self.h_0 = self.relation_cell_1(x_input, self.emb_rel)    # 第1层输入
                 self.h_0 = F.normalize(self.h_0) if self.layer_norm else self.h_0
@@ -170,8 +180,10 @@ class RecurrentRGCN(nn.Module):
                 x_input = torch.cat((self.emb_rel, x_input), dim=1)
                 self.h_0 = self.relation_cell_1(x_input, self.h_0)  # 第2层输出==下一时刻第一层输入
                 self.h_0 = F.normalize(self.h_0) if self.layer_norm else self.h_0
+            # 计算entity_emb evolve
             current_h = self.rgcn.forward(g, self.h, [self.h_0, self.h_0])
             current_h = F.normalize(current_h) if self.layer_norm else current_h
+            # w4
             time_weight = F.sigmoid(torch.mm(self.h, self.time_gate_weight) + self.time_gate_bias)
             self.h = time_weight * current_h + (1-time_weight) * self.h
             history_embs.append(self.h)
@@ -194,8 +206,8 @@ class RecurrentRGCN(nn.Module):
 
     def get_loss(self, glist, triples, static_graph, use_cuda):
         """
-        :param glist:
-        :param triplets:
+        :param glist: history graph list [g, g, g, ...]
+        :param triples: future graph triples [ [triple],[triple],[triple] ]
         :param static_graph: 
         :param use_cuda:
         :return:
@@ -204,6 +216,7 @@ class RecurrentRGCN(nn.Module):
         loss_rel = torch.zeros(1).cuda().to(self.gpu) if use_cuda else torch.zeros(1)
         loss_static = torch.zeros(1).cuda().to(self.gpu) if use_cuda else torch.zeros(1)
 
+        #  add inverse edges to future graph
         inverse_triples = triples[:, [2, 1, 0]]
         inverse_triples[:, 1] = inverse_triples[:, 1] + self.num_rels
         all_triples = torch.cat([triples, inverse_triples])
@@ -212,6 +225,8 @@ class RecurrentRGCN(nn.Module):
         evolve_embs, static_emb, r_emb, _, _ = self.forward(glist, static_graph, use_cuda)
         pre_emb = F.normalize(evolve_embs[-1]) if self.layer_norm else evolve_embs[-1]
 
+        # pre_emb和r_emb是t时刻的entity_emb和rel_emb
+        # all_triples是t+1时刻的三元组集合
         if self.entity_prediction:
             scores_ob = self.decoder_ob.forward(pre_emb, r_emb, all_triples).view(-1, self.num_ents)
             loss_ent += self.loss_e(scores_ob, all_triples[:, 2])

@@ -200,8 +200,10 @@ class UnionRGCNLayer(nn.Module):
         nn.init.xavier_uniform_(self.weight_neighbor, gain=nn.init.calculate_gain('relu'))
 
         if self.self_loop:
+            # w2
             self.loop_weight = nn.Parameter(torch.Tensor(in_feat, out_feat))
             nn.init.xavier_uniform_(self.loop_weight, gain=nn.init.calculate_gain('relu'))
+            # w3
             self.evolve_loop_weight = nn.Parameter(torch.Tensor(in_feat, out_feat))
             nn.init.xavier_uniform_(self.evolve_loop_weight, gain=nn.init.calculate_gain('relu'))
 
@@ -220,6 +222,12 @@ class UnionRGCNLayer(nn.Module):
         g.update_all(lambda x: self.msg_func(x), fn.sum(msg='msg', out='h'), self.apply_func)
 
     def forward(self, g, prev_h, emb_rel):
+        """
+        :param g: graph of a snapshot, containing embedding of node
+        :param prev_h: []
+        :param emb_rel: embedding of relation
+        :return:
+        """
         self.rel_emb = emb_rel
         # self.sub = sub
         # self.ob = ob

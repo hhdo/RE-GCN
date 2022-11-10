@@ -76,6 +76,7 @@ def filter_score_r(test_triples, score, all_ans):
 
 
 def r2e(triplets, num_rels):
+    # 统计与rel相关的entity
     src, rel, dst = triplets.transpose()
     # get all relations
     uniq_r = np.unique(rel)
@@ -91,9 +92,10 @@ def r2e(triplets, num_rels):
     e_idx = []
     idx = 0
     for r in uniq_r:
-        r_len.append((idx,idx+len(r_to_e[r])))
+        r_len.append( (idx , idx+len(r_to_e[r])) )
         e_idx.extend(list(r_to_e[r]))
         idx += len(r_to_e[r])
+    # 返回r的唯一list、每个r相关ent的区间索引、r_len区间中索引对应的entity
     return uniq_r, r_len, e_idx
 
 
@@ -109,6 +111,7 @@ def build_sub_graph(num_nodes, num_rels, triples, use_cuda, gpu):
     """
     def comp_deg_norm(g):
         in_deg = g.in_degrees(range(g.number_of_nodes())).float()
+        # in_degree为0赋值为1
         in_deg[torch.nonzero(in_deg == 0).view(-1)] = 1
         norm = 1.0 / in_deg
         return norm
@@ -287,8 +290,11 @@ def load_all_answers_for_filter(total_data, num_rel, rel_p=False):
 
 def load_all_answers_for_time_filter(total_data, num_rels, num_nodes, rel_p=False):
     all_ans_list = []
+    # ::split_by_time
+    # [[s,r,o,t],[s,r,o,t],[s,r,o,t],...] -->> [ [ [s,r,o],[s,r,o] ], [ [s,r,o] ],...]
     all_snap = split_by_time(total_data)
     for snap in all_snap:
+        # 处理每个snapshot三元组集合转成dict
         all_ans_t = load_all_answers_for_filter(snap, num_rels, rel_p)
         all_ans_list.append(all_ans_t)
 
@@ -306,6 +312,7 @@ def load_all_answers_for_time_filter(total_data, num_rels, num_nodes, rel_p=Fals
     return all_ans_list
 
 def split_by_time(data):
+    # 这里传进来的是二维list(train or valid or test dataset里的edges集合)，即[[s,r,o,t],[s,r,o,t],[s,r,o,t],...]
     snapshot_list = []
     snapshot = []
     snapshots_num = 0
@@ -327,6 +334,7 @@ def split_by_time(data):
         snapshot_list.append(np.array(snapshot).copy())
         snapshots_num += 1
 
+    # 统计信息并输出
     union_num = [1]
     nodes = []
     rels = []

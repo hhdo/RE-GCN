@@ -1,0 +1,42 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "-d", "ICEWS14s", 
+                "--train-history-len", "3", 
+                "--test-history-len", "3", 
+                "--dilate-len", "1", 
+                "--lr", "0.001", 
+                "--n-layers", "2", 
+                "--evaluate-every", "1", 
+                "--n-hidden", "200", 
+                "--self-loop", 
+                "--decoder", "convtranse", 
+                "--encoder", "uvrgcn", 
+                "--layer-norm", 
+                "--weight", "0.5", 
+                "--entity-prediction", 
+                "--relation-prediction", 
+                "--angle", "10", 
+                "--discount", "1", 
+                "--task-weight", "0.7", 
+                "--gpu", "0"
+            ],
+            "cwd": "/home/dh/code/RE-GCN/src",
+            "env": {
+                "utils" : "/home/dh/code/RE-GCN"
+            }
+            
+        }
+    ]
+}

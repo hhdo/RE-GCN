@@ -68,9 +68,10 @@ def test(model, history_list, test_list, num_rels, num_nodes, use_cuda, all_ans_
         test_triples_input = torch.LongTensor(test_snap).cuda() if use_cuda else torch.LongTensor(test_snap)
         test_triples_input = test_triples_input.to(args.gpu)
         test_triples, final_score, final_r_score = model.predict(history_glist, num_rels, static_graph, test_triples_input, use_cuda)
-
+        # test_triples是带有inverse relation的三元组list
         mrr_filter_snap_r, mrr_snap_r, rank_raw_r, rank_filter_r = utils.get_total_rank(test_triples, final_r_score, all_ans_r_list[time_idx], eval_bz=1000, rel_predict=1)
         mrr_filter_snap, mrr_snap, rank_raw, rank_filter = utils.get_total_rank(test_triples, final_score, all_ans_list[time_idx], eval_bz=1000, rel_predict=0)
+        # 带filter的是将history里出现过的三元组对应的score设为无穷大
 
         # used to global statistic
         ranks_raw.append(rank_raw)
@@ -86,6 +87,7 @@ def test(model, history_list, test_list, num_rels, num_nodes, use_cuda, all_ans_
         mrr_filter_list_r.append(mrr_filter_snap_r)
 
         # reconstruct history graph list
+        # 用预测出来的snap去预测下一个
         if args.multi_step:
             if not args.relation_evaluation:    
                 predicted_snap = utils.construct_snap(test_triples, num_nodes, num_rels, final_score, args.topk)
@@ -120,6 +122,8 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
     # load graph data
     print("loading graph data")
     data = utils.load_data(args.dataset)
+    # 剥离三个集合中的t.并将相同t下的三元组构成list
+    # 即[[s,r,o,t],[s,r,o,t],[s,r,o,t],...] -->> [ [ [s,r,o],[s,r,o] ], [ [s,r,o] ],...]
     train_list = utils.split_by_time(data.train)
     valid_list = utils.split_by_time(data.valid)
     test_list = utils.split_by_time(data.test)
@@ -216,12 +220,14 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
             losses_r = []
             losses_static = []
 
-            idx = [_ for _ in range(len(train_list))]
+            idx = [_ for _ in range(len(train_list))] # 时间戳索引[0,1,2,3,...,n]
             random.shuffle(idx)
 
             for train_sample_num in tqdm(idx):
                 if train_sample_num == 0: continue
+                # 选择train_sample_num时刻的graph作为结果
                 output = train_list[train_sample_num:train_sample_num+1]
+                # 选择历史时刻的graph list作为输入
                 if train_sample_num - args.train_history_len<0:
                     input_list = train_list[0: train_sample_num]
                 else:
@@ -229,6 +235,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                                         train_sample_num]
 
                 # generate history graph
+                # 传入build_sub_graph方法中的snap是每一时刻的graph，即[ [srt], [srt], ... ,[] ]
                 history_glist = [build_sub_graph(num_nodes, num_rels, snap, use_cuda, args.gpu) for snap in input_list]
                 output = [torch.from_numpy(_).long().cuda() for _ in output] if use_cuda else [torch.from_numpy(_).long() for _ in output]
                 loss_e, loss_r, loss_static = model.get_loss(history_glist, output[0], static_graph, use_cuda)
